@@ -287,22 +287,6 @@
 		<Filter
 			Name="pcre"
 			>
-			<File
-				RelativePath=".\pcre-8.33\inc\pcre.h"
-				>
-			</File>
-			<File
-				RelativePath=".\pcre-8.33\lib\pcre3d.lib"
-				>
-			</File>
-			<File
-				RelativePath=".\pcre-8.33\inc\pcreposix.h"
-				>
-			</File>
-			<File
-				RelativePath=".\pcre-8.33\lib\pcreposix3d.lib"
-				>
-			</File>
 		</Filter>
 	</Files>
 	<Globals>
