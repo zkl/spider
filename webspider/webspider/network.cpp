@@ -220,7 +220,7 @@ int network_procmsg(network_t * network)
 			ret = recv(socket->dsp, queue_last(&socket->rdque), 
 				queue_left(&socket->rdque), 0);
 
-			printf("recv buf: %s\n", queue_last(&socket->rdque));
+			//printf("recv buf: %s\n", queue_last(&socket->rdque));
 
 			if(ret > 0)
 				queue_enqueue(&socket->rdque, 0, ret);

@@ -6,6 +6,7 @@
 static void http_head_init(struct http_head * head);
 static void http_header_write_head(http_t * http, http_request_t * request);
 static void http_header_set_retcode(http_request_t * request, char * buf);
+static void http_header_set_retword(http_request_t * requset, char * buf);
 
 static void http_header_set_keyword(struct http_head * head, const char * key, 
 	const char * val, int over_write);
@@ -149,10 +150,10 @@ struct http_head * http_request_header(http_request_t * request)
 	int size = net_socket_size(request->netsocket);
 	char * ps= net_socket_data(request->netsocket);
 
-	while(getsubstr(buf, 2048, ps, 0, '\n') == 0)
+	while(request->read_end_head == 0 && getsubstr(buf, 2048, ps, '\n') )
 	{
 		net_socket_pop(request->netsocket, strlen(buf)+1);
-		
+
 		rtrimchr(buf, '\r');
 
 		if(request->read_ret == 0)
@@ -161,27 +162,113 @@ struct http_head * http_request_header(http_request_t * request)
 		}
 		else
 		{
-			if(strlen(buf) <= 2)
-				request->read_end_head = 1;
+			http_header_set_retword(request, buf);
 		}
-
-		printf("%s\n", buf);
-
-	
 	}
 
-	return 0;
+	http_ketword * key = http_header_get_keyword(&request->head, "Content-Length", 0);
+	if(key != 0)
+		request->left_data = atoi(key->value);
+
+	if(request->read_end_head)
+		return &request->head;
+	else
+		return 0;
+}
+
+int http_request_read(http_request_t * request, char * buf, int size)
+{
+	struct http_head * head = http_request_header(request);
+	if(head == 0)
+		return 0;
+	
+	int left_size = request->left_data;
+	int buff_size = net_socket_size(request->netsocket);
+
+	size = size > left_size? left_size : size;
+	size = size > buff_size? buff_size : size;
+	
+	if(size > 0)
+	{
+		memcpy(buf, net_socket_data(request->netsocket), size);
+		net_socket_pop(request->netsocket, size);
+	}
+
+	request->left_data -= size;
+	if(left_size == 0)
+	{
+		http_ketword * key = http_header_get_keyword(&request->head, "Content-Length", 0);
+		if(key == 0)
+		{
+			char len[1024];
+			char * ps= net_socket_data(request->netsocket);
+		
+			if(getsubstr(len, 1024, ps, '\n') == 0)
+				return 0;
+
+			net_socket_pop(request->netsocket, strlen(len)+1);
+
+			request->left_data = strtol(len, 0, 16);
+			return 0;
+		}
+		else
+			printf("数据读取完成\n");
+	}
+	
+	return size;
 }
 
 static void http_header_set_retcode(http_request_t * request, char * buf)
 {
 	request->read_ret = 1;
-		
-	char version[20];
+
+	char version[20];	
 	char retcode[20];
 	char message[1024];
 
+	const char * ps = getsubstr(version, 20, buf, ' ');
+	if(ps == 0)
+		return ;
+
+	//printf("版本号 %s\n", version);
+
+	buf += (ps-buf);
+	ltrimchr(buf, ' ');
+	ps = getsubstr(retcode, 20, buf, ' ');
+
 	request->ret_code = atoi(retcode);
+
+	//printf("返回码 %s\n", retcode);
+
+	buf += (ps-buf);
+	ltrimchr(buf, ' ');
+
+	request->message = strdup(buf);
+	//printf("描述符 %s\n", buf);
+}
+
+static void http_header_set_retword(http_request_t * requset, char * buf)
+{
+	char key[1024];
+	
+	if(strlen(buf) <= 0) // 空行，解析完成
+	{
+		requset->read_end_head = 1;
+		return ;
+	}
+
+	const char * ps = getsubstr(key, 1024, buf, ':');
+	if(ps == 0)
+		return ;
+
+	// printf("关键字 %s\n", key);
+
+	buf += (ps-buf);
+	ltrimchr(buf, ' ');
+	
+	// printf("值 [%s]\n", buf);
+
+	http_header_set_keyword(&requset->head, key, buf, 0);
 }
 
 void http_header_write_head(http_t * http, http_request_t * request)

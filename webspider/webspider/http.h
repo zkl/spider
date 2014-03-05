@@ -27,6 +27,7 @@ typedef struct
 {
 	int read_ret;
 	int read_end_head;
+	long left_data;
 
 	int ret_code;
 	char * message;
@@ -45,7 +46,7 @@ http_request_t * http_post(http_t * http, const char * urlstr, http_callback_rea
 struct http_head * http_request_header(http_request_t * request);   // ¡¾4¡¿
 void             http_request_statu ();
 void             http_request_close ();   // ¡¾5¡¿
-void             http_request_read();   // ¡¾4¡¿
+int              http_request_read(http_request_t * request, char * buf, int len);   // ¡¾4¡¿
 
 void             http_header_version();   // ¡¾4¡¿
 void             http_header_getkey();    // ¡¾4¡¿
