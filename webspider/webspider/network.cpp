@@ -79,8 +79,8 @@ net_socket_t * network_connect(network_t * network, const char * host, int port)
 	net_socket->network = network;
 	net_socket->linked_node = linked_list_insert(network->net_sockets, 0, net_socket);
 
-	queue_init(&net_socket->rdque, 2048);
-	queue_init(&net_socket->wtque, 2048);
+	queue_init(&net_socket->rdque, 1024, 1024);
+	queue_init(&net_socket->wtque, 1024, 1024);
 
 	return net_socket;
 }
@@ -123,16 +123,7 @@ int net_socket_write(net_socket_t * socket, const char * buf, int size)
 {
 	queue_t * write_queue = &socket->wtque;
 
-	char * sp = queue_last(write_queue);
-	
-	/* 调整可以写入的大小 */
-	size = queue_left(write_queue)>size? size:queue_left(write_queue);
-
-	if(size > 0)
-	{
-		strncpy(sp, buf, size);
-		queue_enqueue(write_queue, size); // 进栈
-	}
+	queue_enqueue(write_queue, buf, size);
 
 	if(queue_size(write_queue) > 0)
 	{
@@ -147,7 +138,7 @@ int net_socket_write(net_socket_t * socket, const char * buf, int size)
 		{
 			socket->statu = ret;
 			return -1;
-		}	
+		}
 	}
 
 	return size;
@@ -232,7 +223,7 @@ int network_procmsg(network_t * network)
 			printf("recv buf: %s\n", queue_last(&socket->rdque));
 
 			if(ret > 0)
-				queue_enqueue(&socket->rdque, ret);
+				queue_enqueue(&socket->rdque, 0, ret);
 
 			if(ret <= 0)
 				socket->statu = ret;

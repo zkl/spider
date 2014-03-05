@@ -1,9 +1,17 @@
 #include <stdio.h>
+#include "strapi.h"
 #include "http.h"
 #include "url.h"
 
-static void http_send_header(http_t * http, http_request_t * request);
-static void http_send_block(http_request_t * request, const char * buf, int len);
+static void http_head_init(struct http_head * head);
+static void http_header_write_head(http_t * http, http_request_t * request);
+static void http_header_set_retcode(http_request_t * request, char * buf);
+
+static void http_header_set_keyword(struct http_head * head, const char * key, 
+	const char * val, int over_write);
+static struct http_ketword * http_header_get_keyword(struct http_head * head, const char * key, 
+	struct http_ketword * current);
+
 
 /*******************************************************************************
 ** 版  本： v 1.1     
@@ -18,21 +26,20 @@ void http_create(http_t ** http, network_t * network)
 {
 	*http = (http_t *)malloc(sizeof(http_t));
 	memset(*http, 0, sizeof(http_t));
-
+	
+	http_head_init(&(*http)->head);
 	(*http)->network = network;
+	
+	http_header_set_keyword(&(*http)->head, "Host", "", 0);
+	http_header_set_keyword(&(*http)->head, "Accept", "*/*", 0);
+	http_header_set_keyword(&(*http)->head, "User-Agent", "Mozilla/5.0", 0);
+	http_header_set_keyword(&(*http)->head, "Connection", "Keep-Alive", 0);
+	http_header_set_keyword(&(*http)->head, "Keep-Alive", "2000", 0);
+}
 
-	strcpy((*http)->header[HTTP_HOST].key      , "Host");
-	strcpy((*http)->header[HTTP_ACCEPT].key    , "Accept");
-	strcpy((*http)->header[HTTP_USER_AGENT].key, "User-Agent");
-	strcpy((*http)->header[HTTP_CONNECTION].key, "Connection");
-	strcpy((*http)->header[HTTP_KEEP_ALIVE].key, "Keep-Alive");
-
-
-	http_set(*http, HTTP_HOST, "");
-	http_set(*http, HTTP_ACCEPT, "*/*");
-	http_set(*http, HTTP_USER_AGENT, "Mozilla/5.0");
-	http_set(*http, HTTP_CONNECTION, "Keep-Alive");
-	http_set(*http, HTTP_KEEP_ALIVE, "2000");
+static void http_head_init(struct http_head * head)
+{
+	memset(head, 0, sizeof(struct http_head));
 }
 
 /*******************************************************************************
@@ -45,12 +52,51 @@ void http_create(http_t ** http, network_t * network)
 ** 返回值： void
 ** 备  注： 
 *******************************************************************************/
-void http_set(http_t * http, http_word_t t, const char * val)
+static void http_header_set_keyword(struct http_head * head, const char * key, 
+							 const char * val, int over_write)
 {
-	if(http->header[t].val != 0)
-		free(http->header[t].val);
+	if(over_write)
+	{
+		struct http_ketword * kw = http_header_get_keyword(head, key, 0);
+		if(kw != 0)
+		{
+			free(kw->value);
+			kw->value = strdup(val);
+			return ;
+		}
+	}
 
-	http->header[t].val = strdup(val);
+	if(head->last_keyword == head->max_keyword)
+	{
+		head->max_keyword += 20;
+		head->words = (struct http_ketword *)realloc(head->words,
+			sizeof(struct http_ketword) * head->max_keyword);
+	}
+
+	head->words[head->last_keyword].key   = strdup(key);
+	head->words[head->last_keyword].value = strdup(val);
+	head->last_keyword++;
+}
+
+
+struct http_ketword * http_header_get_keyword(struct http_head * head, const char * key, 
+	struct http_ketword * current)
+{
+	if(current == 0)
+		current = head->words;
+
+	int index = current - head->words;
+
+	if(index < 0)
+		return 0;
+
+	for(index; index < head->last_keyword; index++)
+	{
+		if(stricmp(head->words[index].key, key) == 0)
+			return head->words + index;
+	}
+
+	return 0;
 }
 
 /*******************************************************************************
@@ -74,46 +120,82 @@ http_request_t * http_get (http_t * http, const char * urlstr)
 		return 0;
 
 	http_request_t * request = (http_request_t *)malloc(sizeof(http_request_t));
+	memset(request, 0, sizeof(http_request_t));
+	
 	request->netsocket = netsocket;
 	
-	http_set(http, HTTP_HOST, url->host);
+	http_header_set_keyword(&http->head, "Host", url->host, 1);
 
 	char buf[2048];
 	sprintf(buf, "GET %s HTTP/1.1\r\n", url->file);
 
-	http_send_block(request, buf, strlen(buf));
-	http_send_header(http, request);
+	net_socket_write(request->netsocket, buf, strlen(buf));
+	http_header_write_head (http, request);
 	return request;
 }
 
+http_request_t * http_post(http_t * http, const char * urlstr, http_callback_read read, void * handle)
+{
+	return 0;
+}
 
-void http_send_header(http_t * http, http_request_t * request)
+struct http_head * http_request_header(http_request_t * request)
 {
 	char buf[2048];
-	for(int i=0; i<HTTP_MAX_WORD; i++)
-	{
-		if(http->header[i].val == 0)
-			continue;
+	
+	if(request->read_end_head)
+		return &request->head;
 
-		sprintf(buf, "%s: %s\r\n", http->header[i].key, http->header[i].val);
-		http_send_block(request, buf, strlen(buf));
+	int size = net_socket_size(request->netsocket);
+	char * ps= net_socket_data(request->netsocket);
+
+	while(getsubstr(buf, 2048, ps, 0, '\n') == 0)
+	{
+		net_socket_pop(request->netsocket, strlen(buf)+1);
+		
+		rtrimchr(buf, '\r');
+
+		if(request->read_ret == 0)
+		{
+			http_header_set_retcode(request, buf);
+		}
+		else
+		{
+			if(strlen(buf) <= 2)
+				request->read_end_head = 1;
+		}
+
+		printf("%s\n", buf);
+
+	
+	}
+
+	return 0;
+}
+
+static void http_header_set_retcode(http_request_t * request, char * buf)
+{
+	request->read_ret = 1;
+		
+	char version[20];
+	char retcode[20];
+	char message[1024];
+
+	request->ret_code = atoi(retcode);
+}
+
+void http_header_write_head(http_t * http, http_request_t * request)
+{
+	char buf[2048];
+	for(int i=0; i<http->head.last_keyword; i++)
+	{
+		if(http->head.words[i].value == 0)
+			break;
+
+		sprintf(buf, "%s: %s\r\n",http->head.words[i].key, http->head.words[i].value);
+		net_socket_write(request->netsocket, buf, strlen(buf));
 	}
 
 	strcpy(buf, "\r\n");
-	http_send_block(request, buf, strlen(buf));
-}
-
-void http_send_block(http_request_t * request, const char * buf, int len)
-{
-	int ret = net_socket_write(request->netsocket, buf, len);
-
-	if(ret <= 0)
-		return; 
-
-	if(ret < len)
-	{
-		network_procmsg(request->netsocket->network);
-
-		http_send_block(request, buf+ret, len-ret);
-	}
+	net_socket_write(request->netsocket, buf, strlen(buf));
 }

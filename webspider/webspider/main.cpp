@@ -35,7 +35,8 @@ int main(int argc, char *argv[])
 	network_create(&network);
 	http_create(&http, network);
 
-	if(http_get(http, host[0]) == 0)
+	http_request_t * request = http_get(http, host[0]);
+	if( request == 0)
 	{
 		printf("连接到服务器错误\n");
 	}
@@ -45,6 +46,7 @@ int main(int argc, char *argv[])
 		if(network_procmsg(network) == SOCKET_ERROR)
 			printf("socket error\n");
 
+		http_request_header(request);
 		Sleep(1000);
 	}
 

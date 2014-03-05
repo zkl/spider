@@ -192,6 +192,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\strapi.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\url.cpp"
 				>
 			</File>
@@ -223,6 +227,10 @@
 			</File>
 			<File
 				RelativePath=".\queue.h"
+				>
+			</File>
+			<File
+				RelativePath=".\strapi.h"
 				>
 			</File>
 			<File
