@@ -79,8 +79,8 @@ net_socket_t * network_connect(network_t * network, const char * host, int port)
 	net_socket->network = network;
 	net_socket->linked_node = linked_list_insert(network->net_sockets, 0, net_socket);
 
-	queue_init(&net_socket->rdque, 1024, 1024);
-	queue_init(&net_socket->wtque, 1024, 1024);
+	queue_init(&net_socket->rdque, 8192, 1024);
+	queue_init(&net_socket->wtque, 2048, 1024);
 
 	return net_socket;
 }

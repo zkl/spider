@@ -60,8 +60,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="ws2_32.lib"
+				AdditionalDependencies="ws2_32.lib pcre3d.lib"
 				LinkIncremental="2"
+				AdditionalLibraryDirectories="D:\project\Github\spider\webspider\webspider\pcre\lib\x64"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -308,11 +309,27 @@
 				>
 			</File>
 			<File
+				RelativePath=".\pcre\lib\pcre3.lib"
+				>
+			</File>
+			<File
+				RelativePath=".\pcre\lib\pcre3d.lib"
+				>
+			</File>
+			<File
 				RelativePath=".\pcre\lib\x64\pcre3d.lib"
 				>
 			</File>
 			<File
 				RelativePath=".\pcre\inc\pcreposix.h"
+				>
+			</File>
+			<File
+				RelativePath=".\pcre\lib\pcreposix3.lib"
+				>
+			</File>
+			<File
+				RelativePath=".\pcre\lib\pcreposix3d.lib"
 				>
 			</File>
 			<File

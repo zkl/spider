@@ -1,12 +1,7 @@
 #include <windows.h>
 #include <conio.h>
 #include <stdio.h>
-#include "todolist.h"
-#include "html.h"
-#include "dns.h"
-#include "network.h"
-#include "url.h"
-#include "http.h"
+#include "spider.h"
 
 const char * test1 = "http://53359.com/";
 const char * test2 = "bbs8899.net/Sort.aspx?number=3";
@@ -26,36 +21,15 @@ const char * host[] = {
 int main(int argc, char *argv[])
 {
 	WSADATA wsaData;
-	WORD wVersionRequested = MAKEWORD( 2, 2 );
+	WORD wVersionRequested = MAKEWORD( 2, 2);
 	WSAStartup( wVersionRequested, &wsaData );
 
-	network_t * network;
-	http_t * http;
+	spider_t * spider;
 
-	network_create(&network);
-	http_create(&http, network);
-
-	http_request_t * request = http_get(http, host[0]);
-	if( request == 0)
-	{
-		printf("连接到服务器错误\n");
-	}
-
-	while(1)
-	{
-		if(network_procmsg(network) == SOCKET_ERROR)
-			printf("socket error\n");
-
-		char buf[1028] = {0};
-		if(http_request_read(request, buf, 1024))
-			printf("%s\n", buf);
+	spider_init(&spider);
+	spider_start(spider, host[1]);
+	spider_delete(spider);
 	
-
-	// Sleep(1000);
-	}
-
-	network_delete(network);
-
 	getchar();
 	return 0;
 }

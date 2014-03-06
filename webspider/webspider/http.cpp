@@ -3,8 +3,8 @@
 #include "http.h"
 #include "url.h"
 
-static void http_head_init(struct http_head * head);
-static void http_head_clear(struct http_head * head);
+static void http_header_init(struct http_head * head);
+static void http_header_delete(struct http_head * head);
 static void http_header_write_head(http_t * http, http_request_t * request);
 static void http_header_set_retcode(http_request_t * request, char * buf);
 static void http_header_set_retword(http_request_t * requset, char * buf);
@@ -29,7 +29,7 @@ void http_create(http_t ** http, network_t * network)
 	*http = (http_t *)malloc(sizeof(http_t));
 	memset(*http, 0, sizeof(http_t));
 	
-	http_head_init(&(*http)->head);
+	http_header_init(&(*http)->head);
 	(*http)->network = network;
 	
 	http_header_set_keyword(&(*http)->head, "Host", "", 0);
@@ -39,12 +39,18 @@ void http_create(http_t ** http, network_t * network)
 	http_header_set_keyword(&(*http)->head, "Keep-Alive", "2000", 0);
 }
 
-static void http_head_init(struct http_head * head)
+void http_delete(http_t * http)
+{
+	http_header_delete(&http->head);
+	free(http);
+}
+
+static void http_header_init(struct http_head * head)
 {
 	memset(head, 0, sizeof(struct http_head));
 }
 
-static void http_head_clear(struct http_head * head)
+static void http_header_delete(struct http_head * head)
 {
 	for(int i=0; i<head->last_keyword; i++)
 	{
@@ -68,6 +74,8 @@ static void http_head_clear(struct http_head * head)
 static void http_header_set_keyword(struct http_head * head, const char * key, 
 							 const char * val, int over_write)
 {
+ // printf("key = %s : val = %s\n", key, val);
+
 	if(over_write)
 	{
 		struct http_ketword * kw = http_header_get_keyword(head, key, 0);
@@ -176,7 +184,7 @@ struct http_head * http_request_header(http_request_t * request)
 		{
 			http_header_set_retword(request, buf);
 		}
-	}
+ 	}
 
 	http_ketword * key = http_header_get_keyword(&request->head, "Content-Length", 0);
 	if(key != 0)
@@ -195,7 +203,7 @@ int http_request_statu (http_request_t * request)
 
 void http_request_close (http_request_t * request)
 {
-	http_head_clear(&request->head);
+	http_header_delete(&request->head);
 	net_socket_close(request->netsocket);
 	if(request->message)
 		free(request->message);
@@ -203,6 +211,16 @@ void http_request_close (http_request_t * request)
 	free(request);
 }
 
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 读取HTTP协议数据
+** 入  参：request - 请求模块指针
+		   buf     - 缓冲区地址
+		   size    - 读取大小
+           
+** 返回值： 成功返回0， 失败返回 SOCKET_ERROR                             
+** 备  注： 主要函数
+*******************************************************************************/
 int http_request_read(http_request_t * request, char * buf, int size)
 {
 	struct http_head * head = http_request_header(request);
@@ -233,11 +251,15 @@ int http_request_read(http_request_t * request, char * buf, int size)
 			{
 				net_socket_pop(request->netsocket, strlen(len)+1);
 				request->left_data = strtol(len, 0, 16);
+				
+				if(request->left_data == 0)
+					return -1;
 			}
 		}
 		else
 		{
 			//printf("数据读取完成\n");
+			return -1;
 		}
 	}
 	
@@ -250,8 +272,7 @@ static void http_header_set_retcode(http_request_t * request, char * buf)
 
 	char version[20];	
 	char retcode[20];
-	char message[1024];
-
+	
 	const char * ps = getsubstr(version, 20, buf, ' ');
 	if(ps == 0)
 		return ;
@@ -272,6 +293,7 @@ static void http_header_set_retcode(http_request_t * request, char * buf)
 	request->message = strdup(buf);
 	//printf("描述符 %s\n", buf);
 }
+
 
 static void http_header_set_retword(http_request_t * requset, char * buf)
 {
