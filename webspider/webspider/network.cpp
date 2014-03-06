@@ -188,8 +188,8 @@ void net_socket_close(net_socket_t * socket)
 int network_procmsg(network_t * network)
 {
 	struct timeval val;
-	val.tv_sec = 1;
-	val.tv_usec= 0;
+	val.tv_sec = 0;
+	val.tv_usec= 100;
 
 	fd_set fd_read;
 	FD_ZERO(&fd_read);

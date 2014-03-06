@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
 	network_create(&network);
 	http_create(&http, network);
 
-	http_request_t * request = http_get(http, host[1]);
+	http_request_t * request = http_get(http, host[0]);
 	if( request == 0)
 	{
 		printf("连接到服务器错误\n");
@@ -50,7 +50,8 @@ int main(int argc, char *argv[])
 		if(http_request_read(request, buf, 1024))
 			printf("%s\n", buf);
 	
-		Sleep(1000);
+
+	// Sleep(1000);
 	}
 
 	network_delete(network);

@@ -4,6 +4,7 @@
 #include "url.h"
 
 static void http_head_init(struct http_head * head);
+static void http_head_clear(struct http_head * head);
 static void http_header_write_head(http_t * http, http_request_t * request);
 static void http_header_set_retcode(http_request_t * request, char * buf);
 static void http_header_set_retword(http_request_t * requset, char * buf);
@@ -41,6 +42,17 @@ void http_create(http_t ** http, network_t * network)
 static void http_head_init(struct http_head * head)
 {
 	memset(head, 0, sizeof(struct http_head));
+}
+
+static void http_head_clear(struct http_head * head)
+{
+	for(int i=0; i<head->last_keyword; i++)
+	{
+		free(head->words[i].key);
+		free(head->words[i].value);
+	}
+
+	free(head->words);
 }
 
 /*******************************************************************************
@@ -176,6 +188,21 @@ struct http_head * http_request_header(http_request_t * request)
 		return 0;
 }
 
+int http_request_statu (http_request_t * request)
+{
+	return net_socket_statu(request->netsocket);
+}
+
+void http_request_close (http_request_t * request)
+{
+	http_head_clear(&request->head);
+	net_socket_close(request->netsocket);
+	if(request->message)
+		free(request->message);
+
+	free(request);
+}
+
 int http_request_read(http_request_t * request, char * buf, int size)
 {
 	struct http_head * head = http_request_header(request);
@@ -195,24 +222,23 @@ int http_request_read(http_request_t * request, char * buf, int size)
 	}
 
 	request->left_data -= size;
-	if(left_size == 0)
+	if(request->left_data == 0)
 	{
 		http_ketword * key = http_header_get_keyword(&request->head, "Content-Length", 0);
 		if(key == 0)
 		{
 			char len[1024];
 			char * ps= net_socket_data(request->netsocket);
-		
-			if(getsubstr(len, 1024, ps, '\n') == 0)
-				return 0;
-
-			net_socket_pop(request->netsocket, strlen(len)+1);
-
-			request->left_data = strtol(len, 0, 16);
-			return 0;
+			if(getsubstr(len, 1024, ps, '\n') != 0)
+			{
+				net_socket_pop(request->netsocket, strlen(len)+1);
+				request->left_data = strtol(len, 0, 16);
+			}
 		}
 		else
-			printf("数据读取完成\n");
+		{
+			//printf("数据读取完成\n");
+		}
 	}
 	
 	return size;

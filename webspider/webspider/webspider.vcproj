@@ -192,6 +192,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\spider.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\strapi.cpp"
 				>
 			</File>
@@ -227,6 +231,10 @@
 			</File>
 			<File
 				RelativePath=".\queue.h"
+				>
+			</File>
+			<File
+				RelativePath=".\spider.h"
 				>
 			</File>
 			<File
@@ -295,6 +303,22 @@
 		<Filter
 			Name="pcre"
 			>
+			<File
+				RelativePath=".\pcre\inc\pcre.h"
+				>
+			</File>
+			<File
+				RelativePath=".\pcre\lib\x64\pcre3d.lib"
+				>
+			</File>
+			<File
+				RelativePath=".\pcre\inc\pcreposix.h"
+				>
+			</File>
+			<File
+				RelativePath=".\pcre\lib\x64\pcreposix3d.lib"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>
