@@ -424,12 +424,18 @@ linked_list_node_t * linked_list_insert(linked_list_t * list,
 
 	if(node == 0)
 	{
+		new_node->prev = 0;
 		new_node->next = list->head;
 
 		if(list->head)
+		{	
 			list->head->prev = new_node;
+		}
 
 		list->head = new_node;
+
+		if(list->last == 0)
+			list->last = new_node;
 	}
 	else
 	{
@@ -438,9 +444,10 @@ linked_list_node_t * linked_list_insert(linked_list_t * list,
 
 		node->next = new_node;
 
-		if(new_node->next)
+		if(new_node->next) // 存在下一个节点
 			new_node->next->prev = new_node;
-
+		else
+			list->last = new_node;
 	}
 
 	list->size++;

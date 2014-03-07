@@ -26,7 +26,7 @@ void url_create(url_t ** url, const char * urlstr)
 	{
 		strncpy(buf, pe, ps-pe);
 		buf += ps-pe + 1;
-		pe = ps + 4;
+		pe = ps + 3;
 	}
 
 	ps = strchr(pe, '/');

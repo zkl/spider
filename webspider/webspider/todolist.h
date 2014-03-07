@@ -11,17 +11,23 @@
 
 typedef struct  
 {
-	LIST * l;
-}TO_LIST;
+	linked_list_t * urls;
+}todo_list_t;
 
-void todo_init(TO_LIST * list);
-void todo_uninit(TO_LIST * list);
+void todo_create(todo_list_t ** list);
+void todo_free(todo_list_t * list);
 
-LNDE todo_mknode(char * item);
-LNDE todo_first (TO_LIST * list);
-LNDE todo_exisit(TO_LIST * list, char * item);
-void todo_remove(TO_LIST * list, LNDE node);
-int  todo_insert(TO_LIST * list, char * item);
-int  todo_freedata(int id, LNDE node, void * parm);
+/* 插入数据 */
+int  todo_insert(todo_list_t * list, const char * item);
+
+/* 删除第一条数据 */
+int  todo_remove(todo_list_t * list);
+
+/* 保存到文件 */
+void todo_save(todo_list_t * list, const char * file);
+void todo_load(todo_list_t * list, const char * file);
+
+/* 获取第一条数据 */
+const char * todo_one(todo_list_t * list);
 
 #endif

@@ -10,9 +10,9 @@ static void http_header_set_retcode(http_request_t * request, char * buf);
 static void http_header_set_retword(http_request_t * requset, char * buf);
 
 static void http_header_set_keyword(struct http_head * head, const char * key, 
-	const char * val, int over_write);
-static struct http_ketword * http_header_get_keyword(struct http_head * head, const char * key, 
-	struct http_ketword * current);
+	const char * val, int override);
+static struct http_ketword_t * http_header_get_keyword(struct http_head * head, const char * key, 
+	struct http_ketword_t * current);
 
 
 /*******************************************************************************
@@ -45,6 +45,20 @@ void http_delete(http_t * http)
 	free(http);
 }
 
+void http_config(http_t * http, http_config_t cmd, void * parms)
+{
+	switch(cmd)
+	{
+	case SET_HEADER:
+		{
+			struct parms_t {char * key; char * val; int overrite;};
+			struct parms_t * p = (struct parms_t *)parms;
+			http_header_set_keyword(&http->head, p->key, p->val, p->overrite);
+			break;
+		}
+	}
+}
+
 static void http_header_init(struct http_head * head)
 {
 	memset(head, 0, sizeof(struct http_head));
@@ -72,13 +86,13 @@ static void http_header_delete(struct http_head * head)
 ** ±¸  ×¢£º 
 *******************************************************************************/
 static void http_header_set_keyword(struct http_head * head, const char * key, 
-							 const char * val, int over_write)
+							 const char * val, int override)
 {
  // printf("key = %s : val = %s\n", key, val);
 
-	if(over_write)
+	if(override)
 	{
-		struct http_ketword * kw = http_header_get_keyword(head, key, 0);
+		struct http_ketword_t * kw = http_header_get_keyword(head, key, 0);
 		if(kw != 0)
 		{
 			free(kw->value);
@@ -90,8 +104,8 @@ static void http_header_set_keyword(struct http_head * head, const char * key,
 	if(head->last_keyword == head->max_keyword)
 	{
 		head->max_keyword += 20;
-		head->words = (struct http_ketword *)realloc(head->words,
-			sizeof(struct http_ketword) * head->max_keyword);
+		head->words = (struct http_ketword_t *)realloc(head->words,
+			sizeof(struct http_ketword_t) * head->max_keyword);
 	}
 
 	head->words[head->last_keyword].key   = strdup(key);
@@ -100,8 +114,8 @@ static void http_header_set_keyword(struct http_head * head, const char * key,
 }
 
 
-struct http_ketword * http_header_get_keyword(struct http_head * head, const char * key, 
-	struct http_ketword * current)
+struct http_ketword_t * http_header_get_keyword(struct http_head * head, const char * key, 
+	struct http_ketword_t * current)
 {
 	if(current == 0)
 		current = head->words;
@@ -186,7 +200,7 @@ struct http_head * http_request_header(http_request_t * request)
 		}
  	}
 
-	http_ketword * key = http_header_get_keyword(&request->head, "Content-Length", 0);
+	http_ketword_t * key = http_header_get_keyword(&request->head, "Content-Length", 0);
 	if(key != 0)
 		request->left_data = atoi(key->value);
 
@@ -242,7 +256,7 @@ int http_request_read(http_request_t * request, char * buf, int size)
 	request->left_data -= size;
 	if(request->left_data == 0)
 	{
-		http_ketword * key = http_header_get_keyword(&request->head, "Content-Length", 0);
+		http_ketword_t * key = http_header_get_keyword(&request->head, "Content-Length", 0);
 		if(key == 0)
 		{
 			char len[1024];
@@ -264,6 +278,24 @@ int http_request_read(http_request_t * request, char * buf, int size)
 	}
 	
 	return size;
+}
+
+int http_request_recode(http_request_t * request)
+{
+	return request->ret_code;
+}
+
+char * http_header_getkey(struct http_head * header, const char * key, int n)
+{
+	struct http_ketword_t * wd = http_header_get_keyword(header, key, 0);
+	for(int i=1; i<n; i++)
+	{
+		wd = http_header_get_keyword(header, key, wd);
+		if(wd == 0)
+			break;
+	}
+
+	return wd ? wd->value : 0;
 }
 
 static void http_header_set_retcode(http_request_t * request, char * buf)

@@ -3,9 +3,14 @@
 
 #include "pcre/inc/pcre.h"
 #include "http.h"
+#include "todolist.h"
 
 typedef struct 
 {
+	todo_list_t * history;
+	todo_list_t * images;
+	todo_list_t * urls;
+
 	network_t * network;
 	http_t * http;
 	pcre * imgage;

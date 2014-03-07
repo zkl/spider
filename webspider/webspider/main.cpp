@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
 	spider_t * spider;
 
 	spider_init(&spider);
-	spider_start(spider, host[1]);
+	spider_start(spider, host[0]);
 	spider_delete(spider);
 	
 	getchar();

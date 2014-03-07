@@ -201,6 +201,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\todolist.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\url.cpp"
 				>
 			</File>
@@ -313,11 +317,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\pcre\lib\pcre3d.lib"
+				RelativePath=".\pcre\lib\x64\pcre3d.lib"
 				>
 			</File>
 			<File
-				RelativePath=".\pcre\lib\x64\pcre3d.lib"
+				RelativePath=".\pcre\lib\pcre3d.lib"
 				>
 			</File>
 			<File
@@ -329,11 +333,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\pcre\lib\pcreposix3d.lib"
+				RelativePath=".\pcre\lib\x64\pcreposix3d.lib"
 				>
 			</File>
 			<File
-				RelativePath=".\pcre\lib\x64\pcreposix3d.lib"
+				RelativePath=".\pcre\lib\pcreposix3d.lib"
 				>
 			</File>
 		</Filter>
