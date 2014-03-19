@@ -1,3 +1,14 @@
+/*******************************************************************************
+**                                                  
+** 版    本:  v 1.1.0                                                
+** 功    能:  实现HTTP请求模块
+** 创    期:  Wed. 26 Feb 2014   修改于 Thur 3 Mar 2014 
+** 版    权:  
+** 作    者:  张昆伦 
+** 备    注:          
+** 更    新:  
+*******************************************************************************/
+
 #ifndef HTTP_H
 #define HTTP_H
 
@@ -42,18 +53,22 @@ typedef enum
 
 typedef int (*http_callback_read)(void * handle, char * buf, int size);
 
-void http_create(http_t ** http, network_t * network); // 【1】
-void http_delete(http_t * http);  // 【6】
-void http_config(http_t * http, http_config_t cmd, void * parms);
+
+void http_create(http_t ** http, network_t * network); /* 创建 HTTP 模块 */
+void http_delete(http_t * http);    /* 删除 HTTP 模块 */
+void http_config(http_t * http, http_config_t cmd, void * parms); /* 配置 HTTP 模块 */
 
 http_request_t * http_get (http_t * http, const char * urlstr); // 【3】
 http_request_t * http_post(http_t * http, const char * urlstr, http_callback_read read, void * handle);// 【3】
 
+
+/* 关于请求返回相关的操作 */
 struct http_head * http_request_header(http_request_t * request);   // 【4】
 int                http_request_statu (http_request_t * request);
-void               http_request_close (http_request_t * request);   // 【5】
+void               http_request_close (http_request_t * request);     // 【5】
 int                http_request_read  (http_request_t * request, char * buf, int len);   // 【4】
 int                http_request_recode(http_request_t * request);
+
 
 void   http_header_version(struct http_head * header);   // 【4】
 char * http_header_getkey(struct http_head * header, const char * key, int n);    // 【4】
