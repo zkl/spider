@@ -54,8 +54,8 @@ typedef enum
 typedef int (*http_callback_read)(void * handle, char * buf, int size);
 
 
-void http_create(http_t ** http, network_t * network); /* 创建 HTTP 模块 */
-void http_delete(http_t * http);    /* 删除 HTTP 模块 */
+http_t * http_create(network_t * network); /* 创建 HTTP 模块 */
+void http_free(http_t * http);    /* 删除 HTTP 模块 */
 void http_config(http_t * http, http_config_t cmd, void * parms); /* 配置 HTTP 模块 */
 
 http_request_t * http_get (http_t * http, const char * urlstr); // 【3】

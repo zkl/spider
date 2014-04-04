@@ -24,22 +24,24 @@ static struct http_ketword_t * http_header_get_keyword(struct http_head * head, 
 ** 返回值： void
 ** 备  注： 使用完成后需要调用http_delete进行资源释放
 *******************************************************************************/
-void http_create(http_t ** http, network_t * network)
+http_t * http_create(network_t * network)
 {
-	*http = (http_t *)malloc(sizeof(http_t));
-	memset(*http, 0, sizeof(http_t));
+	http_t * http = (http_t *)malloc(sizeof(http_t));
+	memset(http, 0, sizeof(http_t));
 	
-	http_header_init(&(*http)->head);
-	(*http)->network = network;
+	http_header_init(&http->head);
+	(http)->network = network;
 	
-	http_header_set_keyword(&(*http)->head, "Host", "", 0);
-	http_header_set_keyword(&(*http)->head, "Accept", "*/*", 0);
-	http_header_set_keyword(&(*http)->head, "User-Agent", "Mozilla/5.0", 0);
-	http_header_set_keyword(&(*http)->head, "Connection", "Keep-Alive", 0);
-	http_header_set_keyword(&(*http)->head, "Keep-Alive", "2000", 0);
+	http_header_set_keyword(&http->head, "Host", "", 0);
+	http_header_set_keyword(&http->head, "Accept", "*/*", 0);
+	http_header_set_keyword(&http->head, "User-Agent", "Mozilla/5.0", 0);
+	http_header_set_keyword(&http->head, "Connection", "Keep-Alive", 0);
+	http_header_set_keyword(&http->head, "Keep-Alive", "2000", 0);
+
+	return http;
 }
 
-void http_delete(http_t * http)
+void http_free(http_t * http)
 {
 	http_header_delete(&http->head);
 	free(http);
