@@ -87,7 +87,7 @@ void spider_init(spider_t ** spider)
 	(*spider)->link   = pcre_compile("href[\\s]*=[\\s]*\\\".*?\"", 0, &error, &erroffset, 0); 
 
 	network_create(&(*spider)->network);
-	(*spider)->http = http_create((*spider)->network);
+	http_create(&(*spider)->http, (*spider)->network);
 
 	todo_create(&(*spider)->history);
 	todo_create(&(*spider)->images);
@@ -175,7 +175,7 @@ void spider_delete(spider_t * spider)
 {
 	pcre_free(spider->imgage);
 	pcre_free(spider->link);
-	http_free(spider->http);
+	http_delete(spider->http);
 	network_delete(spider->network);
 
 	todo_free(spider->history);

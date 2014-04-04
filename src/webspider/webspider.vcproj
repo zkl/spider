@@ -313,15 +313,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\pcre\lib\pcre3d.lib"
+				RelativePath=".\pcre\lib\pcre3.lib"
 				>
 			</File>
 			<File
 				RelativePath=".\pcre\inc\pcreposix.h"
-				>
-			</File>
-			<File
-				RelativePath=".\pcre\lib\pcreposix3d.lib"
 				>
 			</File>
 		</Filter>
