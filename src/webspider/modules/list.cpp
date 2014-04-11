@@ -365,13 +365,13 @@ linked_list_node_t * linked_list_last (linked_list_t * list)
 /* 下一个一个位置 */
 linked_list_node_t * linked_list_next (linked_list_node_t * node)
 {
-	return node->next;
+	return node? node->next: 0;
 }
 
 /* 上一个一个位置 */
 linked_list_node_t * linked_list_previous(linked_list_node_t * node)
 {
-	return node->prev;
+	return node? node->prev: 0;
 }
 
 /*******************************************************************************

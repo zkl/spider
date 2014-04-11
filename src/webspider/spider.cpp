@@ -5,11 +5,17 @@
 #include "queue.h"
 
 /* 解析地址 */
-static void   spider_anlize(spider_t * spider, queue_t * mbuf, const char * url);
+static void   spider_anlize(spider_t * spider, queue_t * mbuf, 
+					http_request_t * request);
 static char * spider_format(char * furl, char * url, const char * host);
 static int    spider_is_text(const char * type);
+static void   spider_arrived(http_request_t * request);
+static void   spider_header (http_request_t * request);
+static void   spider_errors (http_request_t * request);
+static void   spider_reqnext(spider_t * spider);
 
-static void spider_anlize(spider_t * spider, queue_t * mbuf, const char * url)
+void spider_anlize(spider_t * spider, queue_t * mbuf, 
+					http_request_t * request)
 {
 	int ret;
 	int  ovector[100];
@@ -17,6 +23,9 @@ static void spider_anlize(spider_t * spider, queue_t * mbuf, const char * url)
 	char * html = queue_data(mbuf);
 	int len = queue_size(mbuf);
 
+	struct _http_head_ * header = http_request_send_header(request);
+
+	const char * url = http_header_getkey(header, "Host", 0);
 	ret = pcre_exec(spider->link, 0, html, len, 0, 0, ovector, 100);
  
 	char url_buf [1024];
@@ -75,23 +84,33 @@ static int spider_is_text(const char * type)
 		return 0;
 }
 
-void spider_init(spider_t ** spider)
+spider_t * spider_create()
 {
 	const char *error;  
 	int erroffset;  
 
-	*spider = (spider_t *)malloc(sizeof(spider_t));
-	memset(*spider, 0, sizeof(spider_t));
+	spider_t * spider = (spider_t *)malloc(sizeof(spider_t));
+	memset(spider, 0, sizeof(spider_t));
 
-	(*spider)->imgage = pcre_compile("src[\\s]*=[\\s]*\\\".*?\"", 0, &error, &erroffset, 0); 
-	(*spider)->link   = pcre_compile("href[\\s]*=[\\s]*\\\".*?\"", 0, &error, &erroffset, 0); 
+	spider->imgage = pcre_compile("src[\\s]*=[\\s]*\\\".*?\"", 0, &error, 
+			&erroffset, 0); 
 
-	network_create(&(*spider)->network);
-	http_create(&(*spider)->http, (*spider)->network);
+	spider->link   = pcre_compile("href[\\s]*=[\\s]*\\\".*?\"", 0, &error, 
+			&erroffset, 0); 
 
-	todo_create(&(*spider)->history);
-	todo_create(&(*spider)->images);
-	todo_create(&(*spider)->urls);
+	spider->network = network_create();
+	spider->http = http_create(spider->network);
+
+	http_config(spider->http, HTTP_SET_RECV_EVENT, (void *)&spider_arrived);
+	http_config(spider->http, HTTP_SET_HEAD_RECVED, (void *)&spider_header);
+	http_config(spider->http, HTTP_SET_ERROR_EVENT, (void *)&spider_errors);
+
+	spider->goon = 1;
+	spider->buffer = queue_create(1024, 1024);
+	spider->history = todo_create();
+	spider->images  = todo_create();
+	spider->urls    = todo_create();
+	return spider;
 }
 
 void spider_config(spider_t * spider, int cmd, void * parm)
@@ -99,84 +118,33 @@ void spider_config(spider_t * spider, int cmd, void * parm)
 }
 
 
-void spider_start(spider_t * spider, const char * first_host)
+void spider_exec(spider_t * spider, const char * first_host)
 {
-	queue_t mbuf;
-	queue_init(&mbuf, 8192, 1024);
-
-
-	const char * url = first_host;
 	todo_insert(spider->urls, first_host);
-	todo_insert(spider->history, first_host);
+	spider_reqnext(spider);
 
-	while(1)
+	while(spider->goon)
 	{
-		url = todo_one(spider->urls);
-		if(url == 0)
-			break;
-		
-		http_request_t * request = http_get(spider->http, url);
-	
-		while(request)
+		int ret = network_procmsg(spider->network);
+		if(ret == SOCKET_ERROR)
 		{
-			int ret = network_procmsg(spider->network);
-
-			if(ret == SOCKET_ERROR)
-			{
-				printf("socket error\n");
-				break;
-			}
-
-			
-			struct http_head * head = http_request_header(request);
-			if(head == 0)
-			{
-				if(http_request_statu(request) <= 0)
-					break;
-	
-				continue;
-			}
-
-			char * type = http_header_getkey(head, "Content-Type", 0);
-			
-			if(type && spider_is_text(type) == 0)
-				break;
-			
-			char buf[1028] = {0};
-			ret = http_request_read(request, buf, 1024);
-
-			if(ret > 0)
-				queue_enqueue(&mbuf, buf, ret);
-			
-			spider_anlize(spider, &mbuf, url);
-			
-			if(ret < 0)
-				break;
-
-			if(http_request_statu(request) <= 0)
-					break;
+			printf("prco network error\n");
+			break;
 		}
-
-		if(request)
-			printf("[done] [%d] %s\n", http_request_recode(request), url);
-		else
-			printf("[erro] [  ] %s\n", url);
-
-		todo_remove(spider->urls);
-
-		http_request_close(request);
 	}
-
-	printf("All done\n");
-	queue_destroy(&mbuf);
 }
 
-void spider_delete(spider_t * spider)
+void spider_quit(spider_t * spider)
+{
+	spider->goon = 0;
+}
+
+void spider_free(spider_t * spider)
 {
 	pcre_free(spider->imgage);
 	pcre_free(spider->link);
-	http_delete(spider->http);
-	network_delete(spider->network);
+	http_free(spider->http);
+	network_free(spider->network);
 
 	todo_free(spider->history);
 	todo_free(spider->images);
@@ -186,4 +154,84 @@ void spider_delete(spider_t * spider)
 }
 
 
+void spider_arrived(http_request_t * request)
+{
+	char buf[1024] = {0};
+	spider_t * spider = (spider_t *)http_request_get_user_data(request);
+	int num;
+	do
+	{
+		num = http_request_read(request, buf, 1000);
+		if(num > 0)
+			queue_enqueue(spider->buffer, buf, num);
+	}while(num > 0);
+
+	if(num == -1)
+	{
+		printf("\nrecv done\n");
+		spider_anlize(spider, spider->buffer, request);
+		http_request_close(request);
+		spider_reqnext(spider);
+	}
+}
+
+void spider_header (http_request_t * request)
+{
+	spider_t * spider = (spider_t *)http_request_get_user_data(request);
+	struct _http_head_ * head = http_request_header(request);
+	int rtcode = http_request_recode(request);
+
+	/* 需要跳转 */ 
+	switch(rtcode)
+	{
+	case 302:
+		todo_insert(spider->urls, http_header_getkey(head, "Location", 0));
+		spider_reqnext(spider);
+		http_request_close(request);
+		break;
+	case 200:
+		break;
+	}
+}
+
+void spider_errors (http_request_t * request)
+{
+	printf("spider errors\n");
+	spider_t * spider = (spider_t *)http_request_get_user_data(request);
+	http_request_close(request);
+	spider_reqnext(spider);
+}
+
+void spider_reqnext(spider_t * spider)
+{
+	const char * url = todo_one(spider->urls);
+	printf("%s\n", url);
+	queue_dequeue(spider->buffer, queue_size(spider->buffer));
+
+	if(url == 0)
+	{
+		spider_quit(spider);
+		return ;
+	}
+
+	http_request_t * request = 0;
+
+	do
+	{
+		todo_insert(spider->history, url);
+		request = http_get(spider->http, url);
+
+		todo_insert(spider->history, url);
+		todo_remove(spider->urls);
+		url = todo_one(spider->urls);
+	}while(request == 0 && url != 0);
+
+	if(request == 0)
+	{
+		spider_quit(spider);
+		return ;
+	}
+
+	http_request_set_user_data(request, spider);
+}
 

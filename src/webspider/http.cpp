@@ -3,17 +3,21 @@
 #include "http.h"
 #include "url.h"
 
-static void http_header_init(struct http_head * head);
-static void http_header_delete(struct http_head * head);
+
+static void http_header_init  (struct _http_head_ * head);
+static void http_header_delete(struct _http_head_ * head);
 static void http_header_write_head(http_t * http, http_request_t * request);
 static void http_header_set_retcode(http_request_t * request, char * buf);
 static void http_header_set_retword(http_request_t * requset, char * buf);
-
-static void http_header_set_keyword(struct http_head * head, const char * key, 
+static void http_header_set_keyword(struct _http_head_ * head, const char * key, 
 	const char * val, int override);
-static struct http_ketword_t * http_header_get_keyword(struct http_head * head, const char * key, 
-	struct http_ketword_t * current);
-
+static struct _http_keyword_t_ * http_header_get_keyword(
+	struct _http_head_ * head, const char * key, 
+	struct _http_keyword_t_ * current);
+static void http_recv_event(network_t * network, net_socket_t * netsocket);
+static void http_send_event(network_t * network, net_socket_t * netsocket);
+static void http_error_event(network_t * network, net_socket_t * netsocket);
+static void http_request_free(http_request_t * request);
 
 /*******************************************************************************
 ** 版  本： v 1.1     
@@ -24,23 +28,26 @@ static struct http_ketword_t * http_header_get_keyword(struct http_head * head, 
 ** 返回值： void
 ** 备  注： 使用完成后需要调用http_delete进行资源释放
 *******************************************************************************/
-void http_create(http_t ** http, network_t * network)
+http_t * http_create( network_t * network)
 {
-	*http = (http_t *)malloc(sizeof(http_t));
-	memset(*http, 0, sizeof(http_t));
+	http_t * http;
+	http = (http_t *)malloc(sizeof(http_t));
+	memset(http, 0, sizeof(http_t));
 	
-	http_header_init(&(*http)->head);
-	(*http)->network = network;
+	http_header_init(&http->head);
+	http->network = network;
 	
-	http_header_set_keyword(&(*http)->head, "Host", "", 0);
-	http_header_set_keyword(&(*http)->head, "Accept", "*/*", 0);
-	http_header_set_keyword(&(*http)->head, "Accept-Charset", "GB2312", 0);
-	http_header_set_keyword(&(*http)->head, "User-Agent", "Mozilla/5.0", 0);
-	http_header_set_keyword(&(*http)->head, "Connection", "Keep-Alive", 0);
-	http_header_set_keyword(&(*http)->head, "Keep-Alive", "2000", 0);
+	http_header_set_keyword(&http->head, "Host", "", 0);
+	http_header_set_keyword(&http->head, "Accept", "*/*", 0);
+	http_header_set_keyword(&http->head, "Accept-Charset", "GB2312", 0);
+	http_header_set_keyword(&http->head, "User-Agent", "Mozilla/5.0", 0);
+	http_header_set_keyword(&http->head, "Connection", "Keep-Alive", 0);
+	http_header_set_keyword(&http->head, "Keep-Alive", "20", 0);
+
+	return http;
 }
 
-void http_delete(http_t * http)
+void http_free(http_t * http)
 {
 	http_header_delete(&http->head);
 	free(http);
@@ -50,22 +57,42 @@ void http_config(http_t * http, http_config_t cmd, void * parms)
 {
 	switch(cmd)
 	{
-	case SET_HEADER:
+	case HTTP_SET_HEADER:
 		{
 			struct parms_t {char * key; char * val; int overrite;};
 			struct parms_t * p = (struct parms_t *)parms;
 			http_header_set_keyword(&http->head, p->key, p->val, p->overrite);
 			break;
 		}
+	case HTTP_SET_RECV_EVENT:
+		{
+			http->recv_event = (data_event)parms;
+			break;
+		}
+	case HTTP_SET_SEND_EVENT:
+		{
+			http->send_event = (data_event)parms;
+			break;
+		}
+	case HTTP_SET_HEAD_RECVED:
+		{
+			http->head_recved = (data_event)parms;
+			break;
+		}
+	case HTTP_SET_ERROR_EVENT:
+		{
+			http->error_event = (data_event)parms;
+			break;
+		}
 	}
 }
 
-static void http_header_init(struct http_head * head)
+static void http_header_init(struct _http_head_ * head)
 {
-	memset(head, 0, sizeof(struct http_head));
+	memset(head, 0, sizeof(struct _http_head_));
 }
 
-static void http_header_delete(struct http_head * head)
+static void http_header_delete(struct _http_head_ * head)
 {
 	for(int i=0; i<head->last_keyword; i++)
 	{
@@ -86,14 +113,14 @@ static void http_header_delete(struct http_head * head)
 ** 返回值： void
 ** 备  注： 
 *******************************************************************************/
-static void http_header_set_keyword(struct http_head * head, const char * key, 
-							 const char * val, int override)
+static void http_header_set_keyword(struct _http_head_ * head, const char * key,
+	const char * val, int override)
 {
  // printf("key = %s : val = %s\n", key, val);
 
 	if(override)
 	{
-		struct http_ketword_t * kw = http_header_get_keyword(head, key, 0);
+		struct _http_keyword_t_ * kw = http_header_get_keyword(head, key, 0);
 		if(kw != 0)
 		{
 			free(kw->value);
@@ -105,8 +132,8 @@ static void http_header_set_keyword(struct http_head * head, const char * key,
 	if(head->last_keyword == head->max_keyword)
 	{
 		head->max_keyword += 20;
-		head->words = (struct http_ketword_t *)realloc(head->words,
-			sizeof(struct http_ketword_t) * head->max_keyword);
+		head->words = (struct _http_keyword_t_ *)realloc(head->words,
+			sizeof(struct _http_keyword_t_) * head->max_keyword);
 	}
 
 	head->words[head->last_keyword].key   = strdup(key);
@@ -114,9 +141,8 @@ static void http_header_set_keyword(struct http_head * head, const char * key,
 	head->last_keyword++;
 }
 
-
-struct http_ketword_t * http_header_get_keyword(struct http_head * head, const char * key, 
-	struct http_ketword_t * current)
+struct _http_keyword_t_ * http_header_get_keyword(struct _http_head_ * head, 
+		const char * key, struct _http_keyword_t_ * current)
 {
 	if(current == 0)
 		current = head->words;
@@ -151,15 +177,30 @@ http_request_t * http_get (http_t * http, const char * urlstr)
 	if(url->port == 0)
 		url->port = 80;
 
-	net_socket_t * netsocket = network_connect(http->network, url->host, url->port);
+	network_config(http->network, NET_SET_RECV_EVENT, (void *)&http_recv_event);
+	network_config(http->network, NET_SET_SEND_EVENT, (void *)&http_recv_event);
+	network_config(http->network, NET_SET_ERROR_EVENT,
+		(void *)&http_error_event);
+
+	net_socket_t * netsocket = network_connect(http->network, url->host, 
+		url->port);
+
 	if(netsocket == 0)
 		return 0;
 
 	http_request_t * request = (http_request_t *)malloc(sizeof(http_request_t));
 	memset(request, 0, sizeof(http_request_t));
 	
-	request->netsocket = netsocket;
+	request->valid = 1;
+	request->netsocket  = netsocket;
+	request->http = http;
+	request->recv_event = http->recv_event;
+	request->send_event = http->send_event;
+	request->head_recved= http->head_recved;
+	request->error_event= http->error_event;
+
 	
+	net_socket_set_user_data(netsocket, request);
 	http_header_set_keyword(&http->head, "Host", url->host, 1);
 
 	char buf[2048];
@@ -170,12 +211,13 @@ http_request_t * http_get (http_t * http, const char * urlstr)
 	return request;
 }
 
-http_request_t * http_post(http_t * http, const char * urlstr, http_callback_read read, void * handle)
+http_request_t * http_post(http_t * http, const char * urlstr, 
+		http_callback_read read, void * handle)
 {
 	return 0;
 }
 
-struct http_head * http_request_header(http_request_t * request)
+struct _http_head_ * http_request_header(http_request_t * request)
 {
 	char buf[2048];
 	
@@ -201,7 +243,9 @@ struct http_head * http_request_header(http_request_t * request)
 		}
  	}
 
-	http_ketword_t * key = http_header_get_keyword(&request->head, "Content-Length", 0);
+	struct _http_keyword_t_ * key = http_header_get_keyword(&request->head, 
+			"Content-Length", 0);
+
 	if(key != 0)
 		request->left_data = atoi(key->value);
 
@@ -211,15 +255,32 @@ struct http_head * http_request_header(http_request_t * request)
 		return 0;
 }
 
+struct _http_head_ * http_request_send_header(http_request_t * request)
+{
+	return &request->http->head;
+}
+
 int http_request_statu (http_request_t * request)
 {
 	return net_socket_statu(request->netsocket);
 }
 
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 关闭网络连接，并且释放资源
+** 入  参： request - 请求模块指针
+** 返回值： void
+** 备  注： 
+*******************************************************************************/
 void http_request_close (http_request_t * request)
 {
-	http_header_delete(&request->head);
+	request->valid = 0;
 	net_socket_close(request->netsocket);
+}
+
+void http_request_free(http_request_t * request)
+{
+	http_header_delete(&request->head);
 	if(request->message)
 		free(request->message);
 
@@ -238,7 +299,7 @@ void http_request_close (http_request_t * request)
 *******************************************************************************/
 int http_request_read(http_request_t * request, char * buf, int size)
 {
-	struct http_head * head = http_request_header(request);
+	struct _http_head_ * head = http_request_header(request);
 	if(head == 0)
 		return 0;
 	
@@ -257,7 +318,9 @@ int http_request_read(http_request_t * request, char * buf, int size)
 	request->left_data -= size;
 	if(request->left_data == 0)
 	{
-		http_ketword_t * key = http_header_get_keyword(&request->head, "Content-Length", 0);
+		struct _http_keyword_t_ * key = http_header_get_keyword(&request->head, 
+				"Content-Length", 0);
+
 		if(key == 0)
 		{
 			char len[1024];
@@ -267,7 +330,7 @@ int http_request_read(http_request_t * request, char * buf, int size)
 				net_socket_pop(request->netsocket, strlen(len)+1);
 				request->left_data = strtol(len, 0, 16);
 				
-				if(request->left_data == 0)
+				if(size == 0 && request->left_data == 0)
 					return -1;
 			}
 		}
@@ -286,9 +349,9 @@ int http_request_recode(http_request_t * request)
 	return request->ret_code;
 }
 
-char * http_header_getkey(struct http_head * header, const char * key, int n)
+char * http_header_getkey(struct _http_head_ * header, const char * key, int n)
 {
-	struct http_ketword_t * wd = http_header_get_keyword(header, key, 0);
+	struct _http_keyword_t_ * wd = http_header_get_keyword(header, key, 0);
 	for(int i=1; i<n; i++)
 	{
 		wd = http_header_get_keyword(header, key, wd);
@@ -327,6 +390,15 @@ static void http_header_set_retcode(http_request_t * request, char * buf)
 	//printf("描述符 %s\n", buf);
 }
 
+void http_request_set_user_data(http_request_t * req, void * d)
+{
+	req->user_data = d;
+}
+
+void * http_request_get_user_data(http_request_t * req)
+{
+	return req->user_data;
+}
 
 static void http_header_set_retword(http_request_t * requset, char * buf)
 {
@@ -360,10 +432,59 @@ void http_header_write_head(http_t * http, http_request_t * request)
 		if(http->head.words[i].value == 0)
 			break;
 
-		sprintf(buf, "%s: %s\r\n",http->head.words[i].key, http->head.words[i].value);
+		sprintf(buf, "%s: %s\r\n",http->head.words[i].key, 
+				http->head.words[i].value);
+
 		net_socket_write(request->netsocket, buf, strlen(buf));
 	}
 
 	strcpy(buf, "\r\n");
 	net_socket_write(request->netsocket, buf, strlen(buf));
+}
+
+void http_recv_event(network_t * network, net_socket_t * netsocket)
+{
+	http_request_t * request = 
+		(http_request_t *)net_socket_get_user_data(netsocket);
+
+	if(request->read_end_head == 0)
+	{
+		struct _http_head_ * head = http_request_header(request);	
+		if(head != 0)
+		{
+			request->head_recved(request);
+		}
+	}
+
+	if(request->valid == 0)
+		http_request_free(request);
+	else if(request->recv_event)
+		request->recv_event(request);
+
+	if(request->valid == 0)
+		http_request_free(request);
+}
+
+void http_send_event(network_t * network, net_socket_t * netsocket)
+{
+	http_request_t * request = 
+		(http_request_t *)net_socket_get_user_data(netsocket);
+
+	if(request->send_event)
+		request->send_event(request);
+
+	if(request->valid == 0)
+		http_request_free(request);
+}
+
+void http_error_event(network_t * network, net_socket_t * netsocket)
+{
+	http_request_t * request = 
+		(http_request_t *)net_socket_get_user_data(netsocket);
+
+	if(request->error_event)
+		request->error_event(request);
+
+	if(request->valid == 0)
+		http_request_free(request);
 }

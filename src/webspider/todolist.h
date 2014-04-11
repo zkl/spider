@@ -14,7 +14,7 @@ typedef struct
 	linked_list_t * urls;
 }todo_list_t;
 
-void todo_create(todo_list_t ** list);
+todo_list_t * todo_create();
 void todo_free(todo_list_t * list);
 
 /* ²åÈëÊı¾İ */

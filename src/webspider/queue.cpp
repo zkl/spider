@@ -2,17 +2,33 @@
 #include <malloc.h>
 #include "queue.h"
 
-int queue_init(queue_t * q, int maxsize, int grow_step)
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 创建队列
+** 入  参： maxsize		- 队列的最大值
+			grow_step	- 自动增长的步长
+** 返回值： 队列的指针                            
+** 备  注： 
+*******************************************************************************/
+queue_t * queue_create(int maxsize, int grow_step)
 {
+	queue_t * q = (queue_t *)malloc(sizeof(queue_t));
 	q->grow_step= grow_step;
 	q->max_size = maxsize;
 	q->head = (char *)malloc(sizeof(char) * maxsize + sizeof(int));
 	q->rear = q->head;
 
-	return q->head == 0;
+	return q;
 }
 
-int queue_destroy(queue_t * q)
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 释放队列 
+** 入  参： 
+** 返回值： 队列的指针                            
+** 备  注： 
+*******************************************************************************/
+int queue_free(queue_t * q)
 {
 	free(q->head);
 	q->max_size = 0;
@@ -22,6 +38,14 @@ int queue_destroy(queue_t * q)
 	return 0;
 }
 
+
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 进队
+** 入  参： 
+** 返回值：                            
+** 备  注： 
+*******************************************************************************/
 int queue_enqueue(queue_t * q, const char * buf, int size)
 {
 	if(size <= 0)
@@ -35,8 +59,7 @@ int queue_enqueue(queue_t * q, const char * buf, int size)
 
 	if(grow > 0)
 	{
-		char * st = (char *)realloc(q->head, 
-			q->max_size + grow);
+		char * st = (char *)realloc(q->head, q->max_size + grow);
 		
 		q->rear = q->rear - q->head + st; //重置尾指针
 		q->head = st;
@@ -52,6 +75,13 @@ int queue_enqueue(queue_t * q, const char * buf, int size)
 	return size;
 }
 
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 出队
+** 入  参： 
+** 返回值：                            
+** 备  注： 
+*******************************************************************************/
 int queue_dequeue(queue_t * q, int size)
 {
 	if(queue_size(q) < size || size <= 0)
@@ -63,6 +93,14 @@ int queue_dequeue(queue_t * q, int size)
 	return size;
 }
 
+
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 获取队列大小
+** 入  参： 
+** 返回值：                            
+** 备  注： 
+*******************************************************************************/
 int queue_size(queue_t * q)
 {
 	return q->rear - q->head;

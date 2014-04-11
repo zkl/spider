@@ -7,6 +7,7 @@
 
 typedef struct 
 {
+	int goon;
 	todo_list_t * history;
 	todo_list_t * images;
 	todo_list_t * urls;
@@ -15,11 +16,14 @@ typedef struct
 	http_t * http;
 	pcre * imgage;
 	pcre * link;
+	queue_t * buffer;
 }spider_t;
 
-void spider_init(spider_t ** spider);
-void spider_config(spider_t * spider, int cmd, void * parm);
-void spider_start(spider_t * spider, const char * start_host);
-void spider_delete(spider_t * spider);
+spider_t * spider_create();
+void       spider_config(spider_t * spider, int cmd, void * parm);
+void       spider_exec(spider_t * spider, const char * start_host);
+void       spider_quit(spider_t * spider);
+void       spider_free(spider_t * spider);
+  
 
 #endif

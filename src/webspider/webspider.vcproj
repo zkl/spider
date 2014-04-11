@@ -313,7 +313,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\pcre\lib\pcre3.lib"
+				RelativePath=".\pcre\lib\pcre3d.lib"
 				>
 			</File>
 			<File

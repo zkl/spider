@@ -3,26 +3,46 @@
 #include <stdio.h>
 #include "network.h"
 
+static void net_socket_free(net_socket_t * socket);
+static int  net_socket_check_valid(net_socket_t * socket);
 
+int net_socket_check_valid(net_socket_t * socket)
+{
+	if(socket->valid == 0)
+	{	
+		net_socket_free(socket);
+		return 0;
+	}
+	return 1;
+}
 /*******************************************************************************
 ** 版  本： v 1.1     
 ** 功  能： 创建网络模块
 ** 入  参： 
 ** 返回值：       
-** 备  注： 
+** 备  注： 创建的网络模块使用完后需要调用network_free进行释放
 *******************************************************************************/
-void network_create(network_t ** network)
+network_t * network_create()
 {
-	*network = (network_t *)malloc(sizeof(network_t));
-	memset(*network, 0, sizeof(network_t));
+	network_t * network = (network_t *)malloc(sizeof(network_t));
+	memset(network, 0, sizeof(network_t));
 
-	dns_create(&(*network)->dns, 20);
-	linked_list_create(&(*network)->net_sockets);
+	dns_create(&(network)->dns, 20);
+	linked_list_create(&(network)->net_sockets);
 
-	(*network)->dsp = 0;
+	network->dsp = 0;
+
+	return network;
 }
 
-void network_delete(network_t * network)
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 释放网络模块数据和资源
+** 入  参： network - 网络模块指针
+** 返回值：                             
+** 备  注： 
+*******************************************************************************/
+void network_free(network_t * network)
 {
 	linked_list_node_t * list_node;
 	net_socket_t * socket;
@@ -31,8 +51,8 @@ void network_delete(network_t * network)
 	{
 		socket = (net_socket_t *)linked_list_data(list_node);
 
-		queue_destroy(&socket->rdque);
-		queue_destroy(&socket->wtque);
+		queue_free(socket->rdque);
+		queue_free(socket->wtque);
 
 		free(socket);
 	}
@@ -65,7 +85,8 @@ net_socket_t * network_connect(network_t * network, const char * host, int port)
 	if(fd == INVALID_SOCKET)
 		return 0;
 
-	if( connect(fd, (struct sockaddr *)&addr, sizeof(addr)) )
+	/* connect error */
+	if(connect(fd, (struct sockaddr *)&addr, sizeof(addr)))
 		return 0;
 
 	unsigned long argp = 1;
@@ -76,23 +97,43 @@ net_socket_t * network_connect(network_t * network, const char * host, int port)
 
 	net_socket->dsp = fd;
 	net_socket->statu = 1;
+	net_socket->valid = 1;
 	net_socket->network = network;
-	net_socket->linked_node = linked_list_insert(network->net_sockets, 0, net_socket);
+	net_socket->writeed_callback = network->writeed_callback;
+	net_socket->arrived_callback = network->arrived_callback;
+	net_socket->error_callback   = network->error_callback;
 
-	queue_init(&net_socket->rdque, 8192, 1024);
-	queue_init(&net_socket->wtque, 2048, 1024);
+	net_socket->linked_node = linked_list_insert(network->net_sockets, 0,
+		net_socket);
+
+	net_socket->rdque = queue_create(8192, 1024);
+	net_socket->wtque = queue_create(8192, 1024);
 
 	return net_socket;
 }
 
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 获取当前网络数据队列中数据的大小
+** 入  参： 
+** 返回值：                             
+** 备  注： 
+*******************************************************************************/
 int net_socket_size(net_socket_t * socket)
 {
-	return queue_size(&socket->rdque);
+	return queue_size(socket->rdque);
 }
 
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 获取数据队列首地址
+** 入  参： 
+** 返回值：                             
+** 备  注： 
+*******************************************************************************/
 char * net_socket_data(net_socket_t * socket)
 {
-	return queue_data(&socket->rdque);
+	return queue_data(socket->rdque);
 }
 
 /*******************************************************************************
@@ -105,9 +146,10 @@ char * net_socket_data(net_socket_t * socket)
 *******************************************************************************/
 char * net_socket_pop (net_socket_t * socket, int bytes)
 {
-	bytes = bytes<=queue_size(&socket->rdque)?bytes:queue_size(&socket->rdque);
-	queue_dequeue(&socket->rdque, bytes);
-	return queue_data(&socket->rdque);
+	bytes = bytes<=queue_size(socket->rdque)?bytes:queue_size(socket->rdque);
+	queue_dequeue(socket->rdque, bytes);
+
+	return queue_data(socket->rdque);
 }
 
 /*******************************************************************************
@@ -121,7 +163,7 @@ char * net_socket_pop (net_socket_t * socket, int bytes)
 *******************************************************************************/
 int net_socket_write(net_socket_t * socket, const char * buf, int size)
 {
-	queue_t * write_queue = &socket->wtque;
+	queue_t * write_queue = socket->wtque;
 
 	queue_enqueue(write_queue, buf, size);
 
@@ -164,17 +206,45 @@ int net_socket_statu(net_socket_t * socket)
 ** 版  本： v 1.1     
 ** 功  能： 关闭网络连接，并且释放网络资源
 ** 入  参： socket - 网络模块指针
-
 ** 返回值： void
 ** 备  注： 网络模块被关闭后，指向网络模块的指针将指向未知数据
 *******************************************************************************/
 void net_socket_close(net_socket_t * socket)
 {
+	socket->valid = 0;
+}
+
+void net_socket_free(net_socket_t * socket)
+{
 	closesocket(socket->dsp);
-	queue_destroy(&socket->rdque);
-	queue_destroy(&socket->wtque);
-	linked_list_remove(socket->network->net_sockets, socket->linked_node);
+	queue_free(socket->rdque);
+	queue_free(socket->wtque);
 	free(socket);
+}
+
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 绑定用户数据
+** 入  参： 
+** 返回值：                             
+** 备  注： 
+*******************************************************************************/
+void net_socket_set_user_data(net_socket_t * socket, void * d)
+{
+	socket->user_data = d;
+}
+
+
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 获取用户数据
+** 入  参： 
+** 返回值：                             
+** 备  注： 
+*******************************************************************************/
+void * net_socket_get_user_data(net_socket_t * socket)
+{
+	return socket->user_data;
 }
 
 /*******************************************************************************
@@ -196,13 +266,20 @@ int network_procmsg(network_t * network)
 
 	net_socket_t * socket;
 	linked_list_node_t * list_node;
+	int ok;
 
-	for(list_node = linked_list_first(network->net_sockets); list_node; 
-		list_node = linked_list_next(list_node))
-	
+	for(list_node = linked_list_first(network->net_sockets); list_node; )
 	{
 		socket = (net_socket_t *)linked_list_data(list_node);
+		ok = net_socket_check_valid(socket); 
+		if(ok == 0)
+		{
+			list_node = linked_list_remove(network->net_sockets, list_node);
+			continue;
+		}
+
 		FD_SET(socket->dsp, &fd_read);
+		list_node = linked_list_next(list_node);
 	}
 
 	int ret = select(0, &fd_read, NULL, NULL, &val);
@@ -210,27 +287,92 @@ int network_procmsg(network_t * network)
 	if(ret <= 0)
 		return ret;
 
-	for(list_node = linked_list_first(network->net_sockets); list_node; 
-		list_node = linked_list_next(list_node))
+	for(list_node = linked_list_first(network->net_sockets); list_node;) 
 	{
 		socket = (net_socket_t *)linked_list_data(list_node);
-	
+		/* 判断网络socket是否有效，需要在每一个用户操作后进行判断 */
+		/* 如果无效，需要及时进行内存释放和清理 */
+
+		ok = net_socket_check_valid(socket); 
+		if(ok == 0)
+		{
+			list_node = linked_list_remove(network->net_sockets, list_node);
+			continue;
+		}
+
 		if(FD_ISSET(socket->dsp, &fd_read))
 		{
-			ret = recv(socket->dsp, queue_last(&socket->rdque), 
-				queue_left(&socket->rdque), 0);
-
-			//printf("recv buf: %s\n", queue_last(&socket->rdque));
+			ret = recv(socket->dsp, queue_last(socket->rdque), 
+				queue_left(socket->rdque), 0);
 
 			if(ret > 0)
-				queue_enqueue(&socket->rdque, 0, ret);
+				queue_enqueue(socket->rdque, 0, ret);
 
 			if(ret <= 0)
+			{
 				socket->statu = ret;
+				if(socket->error_callback)
+					((network_event_t)socket->error_callback)(network, socket);
+
+				ok = net_socket_check_valid(socket); 
+				if(ok == 0)
+				{
+					list_node = linked_list_remove(network->net_sockets, 
+							list_node);
+					continue;
+				}
+			}
+
+			if(socket->arrived_callback)
+				((network_event_t)socket->arrived_callback)(network, socket);
+		
+			ok = net_socket_check_valid(socket); 
+			if(ok == 0)
+			{
+				list_node = linked_list_remove(network->net_sockets,list_node);
+				continue;
+			}
 		}
 
 		net_socket_write(socket, 0, 0);
-	}
+		if(socket->writeed_callback && net_socket_size(socket) == 0)
+			((network_event_t)socket->writeed_callback)(network, socket);
 
+		ok = net_socket_check_valid(socket); 
+		if(ok == 0)
+		{
+			list_node = linked_list_remove(network->net_sockets, list_node);
+			continue;
+		}
+
+		/* 继续下一个socket查询和判断 */
+		list_node = linked_list_next(list_node);
+	}
 	return 0;
+}
+
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 配置网络模块
+** 入  参： network - 网络模块指针
+			cmd		- 命令字
+			parm	- 参数
+           
+** 返回值：                             
+** 备  注： 
+*******************************************************************************/
+void network_config(network_t * network, network_config_t cmd, void * parm)
+{
+	switch(cmd)
+	{
+	case NET_SET_RECV_EVENT:
+		network->arrived_callback = (network_event_t)parm;
+		break;
+	case NET_SET_SEND_EVENT:
+		network->writeed_callback = (network_event_t)parm;
+		break;
+	case NET_SET_ERROR_EVENT:
+		network->error_callback = (network_event_t)parm;
+		break;
+	}
 }

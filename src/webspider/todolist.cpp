@@ -3,11 +3,12 @@
 #include <string.h>
 #include "todolist.h"
 
-void todo_create(todo_list_t ** list)
+todo_list_t * todo_create()
 {
-	*list = (todo_list_t *)malloc(sizeof(todo_list_t));
-	memset(*list, 0, sizeof(todo_list_t));
-	linked_list_create(&(*list)->urls);
+	todo_list_t * list = (todo_list_t *)malloc(sizeof(todo_list_t));
+	memset(list, 0, sizeof(todo_list_t));
+	linked_list_create(&list->urls);
+	return list;
 }
 
 void todo_free(todo_list_t * list)
