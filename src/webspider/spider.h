@@ -16,6 +16,7 @@ typedef struct
 	http_t * http;
 	pcre * imgage;
 	pcre * link;
+	pcre * title;
 	queue_t * buffer;
 }spider_t;
 

@@ -95,9 +95,9 @@ typedef struct _net_socket_
 	queue_t * wtque;
 	linked_list_node_t * linked_node;
 	void * user_data;
-	void * arrived_callback;
-	void * writeed_callback;
-	void * error_callback;
+	network_event_t arrived_callback;
+	network_event_t writeed_callback;
+	network_event_t error_callback;
 }net_socket_t;
 
 

@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
 
 	spider_t * spider = spider_create();
 
-	spider_exec(spider, host[1]);
+	spider_exec(spider, host[3]);
 
 	spider_free(spider);
 

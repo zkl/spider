@@ -376,6 +376,9 @@ static void http_header_set_retcode(http_request_t * request, char * buf)
 	//printf("版本号 %s\n", version);
 
 	buf += (ps-buf);
+	if(buf == 0)
+		return ;
+
 	ltrimchr(buf, ' ');
 	ps = getsubstr(retcode, 20, buf, ' ');
 
@@ -442,6 +445,13 @@ void http_header_write_head(http_t * http, http_request_t * request)
 	net_socket_write(request->netsocket, buf, strlen(buf));
 }
 
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 接收事件
+** 入  参：
+** 返回值： 
+** 备  注： 
+*******************************************************************************/
 void http_recv_event(network_t * network, net_socket_t * netsocket)
 {
 	http_request_t * request = 
@@ -451,15 +461,14 @@ void http_recv_event(network_t * network, net_socket_t * netsocket)
 	{
 		struct _http_head_ * head = http_request_header(request);	
 		if(head != 0)
-		{
 			request->head_recved(request);
-		}
 	}
 
-	if(request->valid == 0)
-		http_request_free(request);
-	else if(request->recv_event)
-		request->recv_event(request);
+	if(request->valid != 0)
+	{
+		if(request->recv_event)
+			request->recv_event(request);
+	}
 
 	if(request->valid == 0)
 		http_request_free(request);

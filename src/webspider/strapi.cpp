@@ -65,10 +65,15 @@ char * ltrimchr( char *str, char cflag )
 ***************************************************************/
 const char * getsubstr( char * sdest, int nsize, const char * ssrc, char cflag)
 {
-	const char *ps = ssrc;
+	const char * ps = ssrc;
 	const char * pos = strchr(ssrc, cflag);
 	if(pos == 0)
-		return 0;
+	{
+		if(strlen(ssrc) < nsize)
+			strcpy(sdest, ssrc);
+
+		return ssrc+strlen(ssrc);
+	}
 
 	*sdest = 0;
 	if(pos - ssrc >= nsize)

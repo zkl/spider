@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "modules/mstring.h"
 #include "url.h"
 #include "pcre/inc/pcre.h"
 #include "spider.h"
@@ -7,6 +8,9 @@
 /* 解析地址 */
 static void   spider_anlize(spider_t * spider, queue_t * mbuf, 
 					http_request_t * request);
+static void   spider_anlize_url(spider_t * spider, const char * buf, int size, 
+					const char * host);
+static void   spider_anlize_title(spider_t * spider, const char * buf, int size);
 static char * spider_format(char * furl, char * url, const char * host);
 static int    spider_is_text(const char * type);
 static void   spider_arrived(http_request_t * request);
@@ -15,40 +19,87 @@ static void   spider_errors (http_request_t * request);
 static void   spider_reqnext(spider_t * spider);
 
 void spider_anlize(spider_t * spider, queue_t * mbuf, 
-					http_request_t * request)
+		http_request_t * request)
 {
-	int ret;
-	int  ovector[100];
-	
+	struct _http_head_ * header = http_request_send_header(request);
+	const char * host = http_header_getkey(header, "Host", 0);
 	char * html = queue_data(mbuf);
 	int len = queue_size(mbuf);
 
-	struct _http_head_ * header = http_request_send_header(request);
+	/* 解析标题 */ 
+	spider_anlize_title(spider, html, len);
+	/* 解析链接地址 */ 
+	spider_anlize_url(spider, html, len, host);
+}
 
-	const char * url = http_header_getkey(header, "Host", 0);
-	ret = pcre_exec(spider->link, 0, html, len, 0, 0, ovector, 100);
- 
-	char url_buf [1024];
-	char furl_buf[1024];
-	if (ret > 0) 
+static void spider_anlize_url(spider_t * spider, const char * buf, int size, 
+		const char * host)
+{
+	int len = size;
+	int ret;
+	int ovector[100];
+	const char * bp = buf;
+	while(1)
 	{
-        char * start = html + ovector[0]; 
-        int len = ovector[1] - ovector[0];
+		ret = pcre_exec(spider->link, 0, bp, len, 0, 0, ovector, 100);
  
-		sprintf(url_buf, "%.*s\n", len, start); 
-		if(spider_format(furl_buf, url_buf, url))
+		char url_buf [1024];
+		char furl_buf[1024];
+		if (ret > 0) 
 		{
-			if(todo_insert(spider->history, furl_buf) == 0)
+			const char * start = bp + ovector[0]; 
+			int sublen = ovector[1] - ovector[0];
+ 
+			sprintf(url_buf, "%.*s\n", sublen, start); 
+			if(spider_format(furl_buf, url_buf, host))
 			{
-				todo_insert(spider->urls, furl_buf);
 				//printf("%s\n", furl_buf);
+				if(todo_insert(spider->history, furl_buf) == 0)
+					todo_insert(spider->urls, furl_buf);
 			}
-		}
 
-		char * substring_end = start + len;
-		queue_dequeue(mbuf, substring_end - html);
+			bp = start + sublen;
+			len  = size-(bp -buf);
+			if(len <= 0)
+				break;
+		}
+		else
+		{
+			break;
+		}
 	}
-	  
+}
+
+static void spider_anlize_title(spider_t * spider, const char * buf, int size)
+{
+	int len = size;
+	int ret;
+	int ovector[100];
+	const char * bp = buf;
+	while(1)
+	{
+		ret = pcre_exec(spider->title, 0, bp, len, 0, 0, ovector, 100);
+ 
+		char title[1024];
+		if (ret > 0) 
+		{
+			const char * start = bp + ovector[0]; 
+			int sublen = ovector[1] - ovector[0];
+ 
+			sprintf(title, "%.*s\n", sublen, start); 
+			char mlttile[1024];
+			printf("title <%s>\n", utf8tomult(mlttile, 1024, title));
+
+			bp = start + sublen;
+			len  = size-(bp -buf);
+			if(len <= 0)
+				break;
+		}
+		else
+		{
+			break;
+		}
+	}
 }
 
 static char * spider_format(char * furl, char * url, const char * host)
@@ -98,6 +149,9 @@ spider_t * spider_create()
 	spider->link   = pcre_compile("href[\\s]*=[\\s]*\\\".*?\"", 0, &error, 
 			&erroffset, 0); 
 
+	spider->title  = pcre_compile("\\<title\\W*?.*?\\>.*?\\</title\\W*?\\>", 0,
+			&error, &erroffset, 0); 
+
 	spider->network = network_create();
 	spider->http = http_create(spider->network);
 
@@ -143,13 +197,12 @@ void spider_free(spider_t * spider)
 {
 	pcre_free(spider->imgage);
 	pcre_free(spider->link);
+	pcre_free(spider->title);
 	http_free(spider->http);
-	network_free(spider->network);
-
 	todo_free(spider->history);
 	todo_free(spider->images);
 	todo_free(spider->urls);
-
+	network_free(spider->network);
 	free(spider);
 }
 
@@ -205,7 +258,7 @@ void spider_errors (http_request_t * request)
 void spider_reqnext(spider_t * spider)
 {
 	const char * url = todo_one(spider->urls);
-	printf("%s\n", url);
+	printf("get     %s\n", url);
 	queue_dequeue(spider->buffer, queue_size(spider->buffer));
 
 	if(url == 0)
@@ -220,7 +273,6 @@ void spider_reqnext(spider_t * spider)
 	{
 		todo_insert(spider->history, url);
 		request = http_get(spider->http, url);
-
 		todo_insert(spider->history, url);
 		todo_remove(spider->urls);
 		url = todo_one(spider->urls);

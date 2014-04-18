@@ -6,14 +6,18 @@
 static void net_socket_free(net_socket_t * socket);
 static int  net_socket_check_valid(net_socket_t * socket);
 
+
+/*******************************************************************************
+** 版  本： v 1.1     
+** 功  能： 判断网络模块是否有效，如果网络莫无效后应该被删除掉，而且不能引用网
+				络模块的用户数据
+** 入  参： 
+** 返回值： 1 有效,  0 无效  
+** 备  注： 需要调用net_socket_free进行释放
+*******************************************************************************/
 int net_socket_check_valid(net_socket_t * socket)
 {
-	if(socket->valid == 0)
-	{	
-		net_socket_free(socket);
-		return 0;
-	}
-	return 1;
+	return socket->valid;
 }
 /*******************************************************************************
 ** 版  本： v 1.1     
@@ -212,11 +216,11 @@ int net_socket_statu(net_socket_t * socket)
 void net_socket_close(net_socket_t * socket)
 {
 	socket->valid = 0;
+	closesocket(socket->dsp);
 }
 
 void net_socket_free(net_socket_t * socket)
 {
-	closesocket(socket->dsp);
 	queue_free(socket->rdque);
 	queue_free(socket->wtque);
 	free(socket);
@@ -266,14 +270,13 @@ int network_procmsg(network_t * network)
 
 	net_socket_t * socket;
 	linked_list_node_t * list_node;
-	int ok;
 
 	for(list_node = linked_list_first(network->net_sockets); list_node; )
 	{
 		socket = (net_socket_t *)linked_list_data(list_node);
-		ok = net_socket_check_valid(socket); 
-		if(ok == 0)
+		if(net_socket_check_valid(socket) == 0)
 		{
+			net_socket_free(socket);
 			list_node = linked_list_remove(network->net_sockets, list_node);
 			continue;
 		}
@@ -287,19 +290,13 @@ int network_procmsg(network_t * network)
 	if(ret <= 0)
 		return ret;
 
-	for(list_node = linked_list_first(network->net_sockets); list_node;) 
+	for(list_node = linked_list_first(network->net_sockets); list_node;
+		list_node = linked_list_next(list_node))
 	{
 		socket = (net_socket_t *)linked_list_data(list_node);
-		/* 判断网络socket是否有效，需要在每一个用户操作后进行判断 */
-		/* 如果无效，需要及时进行内存释放和清理 */
 
-		ok = net_socket_check_valid(socket); 
-		if(ok == 0)
-		{
-			list_node = linked_list_remove(network->net_sockets, list_node);
-			continue;
-		}
-
+		/* 判断网络socket是否有效，需要在每一个用户操作后进行判断
+		   如果无效，需要及时进行内存释放和清理 */
 		if(FD_ISSET(socket->dsp, &fd_read))
 		{
 			ret = recv(socket->dsp, queue_last(socket->rdque), 
@@ -314,39 +311,20 @@ int network_procmsg(network_t * network)
 				if(socket->error_callback)
 					((network_event_t)socket->error_callback)(network, socket);
 
-				ok = net_socket_check_valid(socket); 
-				if(ok == 0)
-				{
-					list_node = linked_list_remove(network->net_sockets, 
-							list_node);
+				if(net_socket_check_valid(socket) == 0)
 					continue;
-				}
 			}
 
 			if(socket->arrived_callback)
 				((network_event_t)socket->arrived_callback)(network, socket);
 		
-			ok = net_socket_check_valid(socket); 
-			if(ok == 0)
-			{
-				list_node = linked_list_remove(network->net_sockets,list_node);
+			if(net_socket_check_valid(socket) == 0)
 				continue;
-			}
 		}
 
 		net_socket_write(socket, 0, 0);
 		if(socket->writeed_callback && net_socket_size(socket) == 0)
 			((network_event_t)socket->writeed_callback)(network, socket);
-
-		ok = net_socket_check_valid(socket); 
-		if(ok == 0)
-		{
-			list_node = linked_list_remove(network->net_sockets, list_node);
-			continue;
-		}
-
-		/* 继续下一个socket查询和判断 */
-		list_node = linked_list_next(list_node);
 	}
 	return 0;
 }
