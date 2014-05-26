@@ -103,12 +103,10 @@ net_socket_t * network_connect(network_t * network, const char * host, int port)
 	net_socket->statu = 1;
 	net_socket->valid = 1;
 	net_socket->network = network;
-	net_socket->writeed_callback = network->writeed_callback;
-	net_socket->arrived_callback = network->arrived_callback;
-	net_socket->error_callback   = network->error_callback;
 
-	net_socket->linked_node = linked_list_insert(network->net_sockets, 0,
-		net_socket);
+	net_socket->writeed_callback = 0; 
+	net_socket->arrived_callback = 0;
+	net_socket->error_callback   = 0;
 
 	net_socket->rdque = queue_create(8192, 1024);
 	net_socket->wtque = queue_create(8192, 1024);
@@ -329,17 +327,8 @@ int network_procmsg(network_t * network)
 	return 0;
 }
 
-/*******************************************************************************
-** 版  本： v 1.1     
-** 功  能： 配置网络模块
-** 入  参： network - 网络模块指针
-			cmd		- 命令字
-			parm	- 参数
-           
-** 返回值：                             
-** 备  注： 
-*******************************************************************************/
-void network_config(network_t * network, network_config_t cmd, void * parm)
+void   net_socket_config(net_socket_t * network, net_socket_config_t cmd, 
+			void * parm)
 {
 	switch(cmd)
 	{

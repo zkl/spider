@@ -177,13 +177,15 @@ http_request_t * http_get (http_t * http, const char * urlstr)
 	if(url->port == 0)
 		url->port = 80;
 
-	network_config(http->network, NET_SET_RECV_EVENT, (void *)&http_recv_event);
-	network_config(http->network, NET_SET_SEND_EVENT, (void *)&http_recv_event);
-	network_config(http->network, NET_SET_ERROR_EVENT,
-		(void *)&http_error_event);
+	
 
 	net_socket_t * netsocket = network_connect(http->network, url->host, 
 		url->port);
+
+	net_socket_config(netsocket, NET_SET_RECV_EVENT, (void *)&http_recv_event);
+	net_socket_config(netsocket, NET_SET_SEND_EVENT, (void *)&http_recv_event);
+	net_socket_config(netsocket, NET_SET_ERROR_EVENT,
+		(void *)&http_error_event);
 
 	if(netsocket == 0)
 		return 0;

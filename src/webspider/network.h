@@ -80,9 +80,6 @@ typedef struct _network_
 	int dsp;
 	dns_t * dns;
 	linked_list_t * net_sockets;
-	network_event_t arrived_callback;
-	network_event_t writeed_callback;
-	network_event_t error_callback;
 }network_t;
 
 typedef struct _net_socket_
@@ -100,8 +97,7 @@ typedef struct _net_socket_
 	network_event_t error_callback;
 }net_socket_t;
 
-
-enum network_config_t
+enum net_socket_config_t
 {
 	NET_SET_RECV_EVENT,
 	NET_SET_SEND_EVENT,
@@ -113,8 +109,6 @@ void           network_free   (network_t * network);
 net_socket_t * network_connect(network_t * network, const char * host,
 					int port);
 int            network_procmsg(network_t * network);
-void           network_config (network_t * network, network_config_t cmd, 
-					void * parm);
 
 int    net_socket_size (net_socket_t * socket);
 char * net_socket_data (net_socket_t * socket);
@@ -122,6 +116,9 @@ char * net_socket_pop  (net_socket_t * socket, int bytes);
 int    net_socket_write(net_socket_t * socket, const char * buf, int size);
 int    net_socket_statu(net_socket_t * socket);
 void   net_socket_close(net_socket_t * socket);
+void   net_socket_config(net_socket_t * network, net_socket_config_t cmd, 
+			void * parm);
+
 void   net_socket_set_user_data(net_socket_t * socket, void * d);
 void * net_socket_get_user_data(net_socket_t * socket);
 
