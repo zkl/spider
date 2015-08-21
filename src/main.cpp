@@ -4,7 +4,7 @@
 #include "spider.h"
 
 const char * host[] = {
-	"http://www.baidu.com",
+	"www.baidu.com",
 	"www.google.com",
 	"www.iqiyi.com",
 	"www.youku.com",
