@@ -6,7 +6,7 @@
 url_t * spd_url_create(const char * url_string)
 {
 	url_t * url = (url_t *)malloc(sizeof(url_t));
-	int len = strlen(url_string) + 10; // @todo 10 增加分隔符的数量
+	int len = strlen(url_string) + 10; // @todo 10 澧炲姞鍒嗛殧绗︾殑鏁伴噺
 	
 	url->port = 0;
 	url->buf  = (char *)malloc(len);
@@ -16,7 +16,7 @@ url_t * spd_url_create(const char * url_string)
 	memset(buf, 0, len);
 
 	pe = url_string;
-	ps = strstr(pe, "://"); // 处理协议部分
+	ps = strstr(pe, "://"); // 澶勭悊鍗忚閮ㄥ垎
 	url->protocol = buf;
 	if(ps == 0)
 	{
